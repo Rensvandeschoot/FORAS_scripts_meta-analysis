@@ -121,7 +121,7 @@ df_low$Low_n <- round((df_low$Low_percentage / 100) * df_low$Sample_Size)
 # Total number of individuals classified as Low (ignoring missingness in other variables)
 total_Low_n <- sum(df_low$Low_n, na.rm = TRUE)
 
-# Number of unique studies (assumes a column Study exists)
+# Number of unique samples (assumes a column Study exists)
 unique_Low_studies <- length(unique(df_low$Study[!is.na(df_low$Low_percentage)]))
 
 # Display as a table
@@ -184,13 +184,13 @@ knitr::kable(Low_summary, caption = "Pooled Prevalence Estimate for Low Trajecto
 
 ### Sensitivity Analysis 1
 
-Excluding studies with Low trajectory ≥90%
+Excluding samples with Low trajectory ≥90% of the sample
 
 ```{r Low-sensitivity_1}
 # Create a copy of the data
 df_low_sens1 <- df_low
 
-# Subset: Exclude studies with Low trajectory ≥90%
+# Subset: Exclude samples with Low trajectory ≥90% of the sample
 df_low_sens1 <- df_low_sens1 %>%
   filter(Low_percentage < 90,
          !is.na(Low_n),
@@ -231,7 +231,7 @@ Including only large samples (N \> 999)
 # Create a copy of the data
 df_low_sens2 <- df_low
 
-# Subset: Include only studies with Sample_Size > 999
+# Subset: Include only samples with Sample_Size > 999
 df_low_sens2 <- df_low_sens2 %>%
   filter(Sample_Size > 999,
          !is.na(Low_n),
@@ -275,7 +275,7 @@ model_glmer_Low <- glmer(cbind(round(Low_n), Sample_Size - round(Low_n)) ~ 1 + (
                      data = df_low,
                      family = binomial)
 
-# Run influence analysis by Study
+# Run influence analysis by Studies
 infl <- influence(model_glmer_Low, group = "Study")
 
 # Compute Cook's distance
@@ -394,7 +394,7 @@ df_Decreasing$Decreasing_n <- round((df_Decreasing$Decreasing_percentage / 100) 
 # Total number of individuals classified as Decreasing
 total_Decreasing_n <- sum(df_Decreasing$Decreasing_n, na.rm = TRUE)
 
-# Number of unique studies with Decreasing data
+# Number of unique samples with Decreasing data
 unique_Decreasing_studies <- length(unique(df_Decreasing$Study[!is.na(df_Decreasing$Decreasing_percentage)]))
 
 # Display as a table
@@ -467,13 +467,13 @@ knitr::kable(Decreasing_summary, caption = "Pooled Prevalence Estimate for Decre
 
 ### Sensitivity Analysis 1
 
-Exclude ≥90% Decreasing Proportions
+Exclude samples ≥90% Decreasing Proportions
 
 ```{r Decreasing-sens1}
 # Compute Decreasing proportion
 df_Decreasing$Decreasing_Proportion <- df_Decreasing$Decreasing_n / df_Decreasing$Sample_Size
 
-# Subset: Exclude studies with Decreasing ≥90%
+# Subset: Exclude samples with Decreasing ≥90%
 df_Decreasing_sens1 <- df_Decreasing %>%
   filter(Decreasing_Proportion < 0.90)
 
@@ -504,10 +504,10 @@ knitr::kable(sens1_summary, caption = "Sensitivity Analysis 1: Decreasing Trajec
 
 ### Sensitivity Analysis 2
 
-Include Only Studies with N \> 999
+Include Only Samples with N \> 999
 
 ```{r Decreasing-sens2}
-# Subset: Studies with Sample_Size > 999
+# Subset: Samples with Sample_Size > 999
 df_Decreasing_sens2 <- df_Decreasing %>%
   filter(Sample_Size > 999)
 
@@ -652,7 +652,7 @@ df_Increasing$Increasing_n <- round((df_Increasing$Increasing_percentage / 100) 
 # Total number of individuals classified as Increasing
 total_Increasing_n <- sum(df_Increasing$Increasing_n, na.rm = TRUE)
 
-# Number of unique studies with Increasing data
+# Number of unique samples with Increasing data
 unique_Increasing_studies <- length(unique(df_Increasing$Study[!is.na(df_Increasing$Increasing_percentage)]))
 
 # Display as a table
@@ -694,7 +694,7 @@ Increasing_prev <- plogis(coef(glmm_Increasing))
 Increasing_ci_lower <- plogis(glmm_Increasing$ci.lb)
 Increasing_ci_upper <- plogis(glmm_Increasing$ci.ub)
 
-# Number of studies included
+# Number of samples included
 n_Increasing_studies <- glmm_Increasing$k
 
 # Create summary table
@@ -712,13 +712,13 @@ knitr::kable(Increasing_summary, caption = "Pooled Prevalence Estimate for Incre
 
 ### Sensitivity Analysis 1
 
-Exclude ≥90% Decreasing Proportions
+Exclude Samples with ≥90% Decreasing Proportions
 
 ```{r Increasing-sens1}
 # Compute Increasing proportion
 df_Increasing$Increasing_Proportion <- df_Increasing$Increasing_n / df_Increasing$Sample_Size
 
-# Subset: Exclude studies with Increasing ≥90%
+# Subset: Exclude samples with Increasing ≥90%
 df_Increasing_sens1 <- df_Increasing %>%
   filter(Increasing_Proportion < 0.90)
 
@@ -749,7 +749,7 @@ knitr::kable(sens1_summary, caption = "Sensitivity Analysis 1: Increasing Trajec
 
 ### Sensitivity Analysis 2
 
-Include Only Studies with N \> 999
+Include Only Samples with N \> 999
 
 ```{r Increasing-sens2}
 # Subset: Studies with Sample_Size > 999
@@ -902,7 +902,7 @@ df_High$High_n <- round((df_High$High_percentage / 100) * df_High$Sample_Size)
 # Total number of individuals classified as High
 total_High_n <- sum(df_High$High_n, na.rm = TRUE)
 
-# Number of unique studies with High data
+# Number of unique samples with High data
 unique_High_studies <- length(unique(df_High$Study[!is.na(df_High$High_percentage)]))
 
 # Display as a table
@@ -946,7 +946,7 @@ High_prev <- plogis(coef(glmm_High))
 High_ci_lower <- plogis(glmm_High$ci.lb)
 High_ci_upper <- plogis(glmm_High$ci.ub)
 
-# Number of studies included
+# Number of samples included
 n_High_studies <- glmm_High$k
 
 # Create summary table
@@ -964,13 +964,13 @@ knitr::kable(High_summary, caption = "Pooled Prevalence Estimate for High Trajec
 
 ### Sensitivity Analysis 1
 
-Exclude ≥90% Decreasing Proportions
+Exclude Samples with ≥90% Decreasing Proportions
 
 ```{r High-sens1}
 # Compute High proportion
 df_High$High_Proportion <- df_High$High_n / df_High$Sample_Size
 
-# Subset: Exclude studies with High ≥90%
+# Subset: Exclude samples with High ≥90%
 df_High_sens1 <- df_High %>%
   filter(High_Proportion < 0.90)
 
@@ -1001,10 +1001,10 @@ knitr::kable(sens1_summary, caption = "Sensitivity Analysis 1: High Trajectory (
 
 ### Sensitivity Analysis 2
 
-Include Only Studies with N \> 999
+Include Only Samples with N \> 999
 
 ```{r High-sens2}
-# Subset: Studies with Sample_Size > 999
+# Subset: Samples with Sample_Size > 999
 df_High_sens2 <- df_High %>%
   filter(Sample_Size > 999)
 
@@ -1134,6 +1134,8 @@ knitr::kable(glmer_summary_High, caption = "High Trajectory Estimate from glmer 
 
 ## 🌗 Moderate Symptoms Trajectory
 
+We estimate the pooled prevalence of the Moderate trajectory using a Generalized Linear Mixed Model (GLMM)
+
 ### Descriptives
 
 ```{r moderate-descriptives}
@@ -1150,7 +1152,12 @@ df_moderate$Moderate_n <- round((df_moderate$Moderate_percentage / 100) * df_mod
 
 total_Moderate_n <- sum(df_moderate$Moderate_n, na.rm = TRUE)
 
+# Number of unique samples with Moderate data
+
 unique_Moderate_studies <- length(unique(df_moderate$Study[!is.na(df_moderate$Moderate_percentage)]))
+
+# Total number of individuals classified as Moderate
+
 
 Moderate_info <- data.frame(
   Description = c("Total number of individuals in Moderate trajectory", "Number of unique studies with Moderate data"),
@@ -1203,7 +1210,7 @@ knitr::kable(Moderate_summary, caption = "Pooled Prevalence Estimate for Moderat
 
 ### Sensitivity Analysis 1
 
-Exclude ≥90% Prevalence
+Exclude Samples with ≥90% Prevalence
 
 ```{r moderate-sens1}
 df_moderate$Moderate_Proportion <- df_moderate$Moderate_n / df_moderate$Sample_Size
