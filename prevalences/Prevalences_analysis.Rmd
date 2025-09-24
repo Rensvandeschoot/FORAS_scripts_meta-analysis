@@ -35,6 +35,8 @@ library(lme4)
 library(influence.ME)
 library(dplyr)
 library(gt)
+library(purrr)
+library(tidyr)
 ```
 
 ## Load Data
@@ -309,21 +311,21 @@ We reran the GLMM excluding the identified influential studies.
 
 ```{r Low-sens-influential}
 # Exclude the influential studies
-df_sens_infl <- df_low %>%
+df_Low_noif <- df_low %>%
   filter(!Study %in% influential_studies)
 
 # Refit GLMM (metafor version)
-glmm_sens_infl <- rma.glmm(
+glmm_Low_noinf <- rma.glmm(
   measure = "PLO",
-  xi = df_sens_infl$Low_n,
-  ni = df_sens_infl$Sample_Size,
-  data = df_sens_infl
+  xi = df_Low_noif$Low_n,
+  ni = df_Low_noif$Sample_Size,
+  data = df_Low_noif
 )
 
 # Extract estimates
-est_infl <- plogis(coef(glmm_sens_infl))
-ci_lower_infl <- plogis(glmm_sens_infl$ci.lb)
-ci_upper_infl <- plogis(glmm_sens_infl$ci.ub)
+est_infl <- plogis(coef(glmm_Low_noinf))
+ci_lower_infl <- plogis(glmm_Low_noinf$ci.lb)
+ci_upper_infl <- plogis(glmm_Low_noinf$ci.ub)
 
 # Create summary table
 sens_infl_summary <- data.frame(
@@ -331,7 +333,7 @@ sens_infl_summary <- data.frame(
   Pooled_Prevalence = round(est_infl, 3),
   CI_Lower = round(ci_lower_infl, 3),
   CI_Upper = round(ci_upper_infl, 3),
-  Studies_included = glmm_sens_infl$k
+  Studies_included = glmm_Low_noinf$k
 )
 
 knitr::kable(sens_infl_summary, caption = "Sensitivity Analysis: Low Trajectory (Excluding Influential Studies)")
@@ -1290,19 +1292,19 @@ knitr::kable(influential_table, caption = "Influential Studies in Moderate Traje
 Refit Model Excluding Influential Studies
 
 ```{r moderate-sens-infl}
-df_noinf <- df_moderate %>% filter(!Study %in% influential_studies)
+df_Moderate_noinf <- df_moderate %>% filter(!Study %in% influential_studies)
 
-glmm_noinf <- rma.glmm(measure = "PLO",
+glmm_Moderate_noinf <- rma.glmm(measure = "PLO",
                        xi = Moderate_n,
                        ni = Sample_Size,
-                       data = df_noinf)
+                       data = df_Moderate_noinf)
 
 sens_infl_summary <- data.frame(
   Analysis = "Excluding Influential Studies",
-  Pooled_Prevalence = round(plogis(coef(glmm_noinf)), 3),
-  CI_Lower = round(plogis(glmm_noinf$ci.lb), 3),
-  CI_Upper = round(plogis(glmm_noinf$ci.ub), 3),
-  Studies_included = glmm_noinf$k
+  Pooled_Prevalence = round(plogis(coef(glmm_Moderate_noinf)), 3),
+  CI_Lower = round(plogis(glmm_Moderate_noinf$ci.lb), 3),
+  CI_Upper = round(plogis(glmm_Moderate_noinf$ci.ub), 3),
+  Studies_included = glmm_Moderate_noinf$k
 )
 
 knitr::kable(sens_infl_summary, caption = "Sensitivity Analysis: Moderate Trajectory (Excluding Influential Studies)")
@@ -1417,6 +1419,179 @@ table1_df |>
     source_note = html("<em>Note.</em> k represents the number of unique studies. Logit estimate reflects pooled prevalence on a log-odds scale. &tau;<sup>2</sup> indicates between-study heterogeneity; values &gt; 0.50 suggest substantial heterogeneity.")
   )
 ```
-------------------------------------------------------------------------
 
+
+## Sensitivity Analyses Summary
+
+```{r sensitivity-summary-table}
+# ---- helper: one rma.glmm -> 1 row (no changes) ----
+mk_row <- function(fit, label) {
+  prev  <- plogis(as.numeric(coef(fit)))
+  ci_lb <- plogis(as.numeric(fit$ci.lb))
+  ci_ub <- plogis(as.numeric(fit$ci.ub))
+  tibble(
+    Analysis = label,
+    k        = as.integer(fit$k),
+    `Relative Prevalence (95% CI)` =
+      sprintf("%.1f%% [%.1f%% – %.1f%%]", 100 * prev, 100 * ci_lb, 100 * ci_ub),
+    `Logit Estimate` = as.numeric(coef(fit)),
+    tau2             = if (!is.null(fit$tau2)) as.numeric(fit$tau2) else NA_real_
+  )
+}
+
+# ---- 1. DEFINE components ----
+trajectory_map <- c(
+  "Low"        = "Low symptoms",
+  "Decreasing" = "Decreasing symptoms",
+  "Increasing" = "Increasing symptoms",
+  "High"       = "High symptoms",
+  "Moderate"   = "Moderate symptoms"
+)
+
+analysis_map <- c(
+  "Main"  = "Main analysis (all studies)",
+  "sens1" = "Excluding studies with extreme prevalence (≥90%)",
+  "sens2" = "Including only large-sample studies (N ≥ 1000)",
+  "noinf" = "Excluding influential studies"
+)
+
+# ---- 2. BUILD the table of specifications programmatically ----
+all_specs <- crossing(
+  trajectory_stub = names(trajectory_map),
+  analysis_stub   = names(analysis_map)
+) |>
+  mutate(
+    object_name = if_else(
+      analysis_stub == "Main",
+      paste0("glmm_", trajectory_stub),
+      paste0("glmm_", trajectory_stub, "_", analysis_stub)
+    ),
+    Trajectory = trajectory_map[trajectory_stub],
+    Analysis   = analysis_map[analysis_stub]
+  )
+
+# ---- 3. EXECUTE: Iterate over specs to build the final table ----
+big_tbl <- pmap_dfr(
+  all_specs,
+  function(object_name, Trajectory, Analysis, ...) {
+    fit <- tryCatch(get(object_name, envir = .GlobalEnv), error = \(e) NULL)
+    if (!is.null(fit)) {
+      mk_row(fit, Analysis) |>
+        mutate(Trajectory = Trajectory, .before = 1)
+    }
+  }
+)
+
+# ---- 4. PREPARE for gt: Enforce group order ----
+trajectory_order <- c(
+  "Low symptoms",
+  "Decreasing symptoms",
+  "Increasing symptoms",
+  "High symptoms",
+  "Moderate symptoms"
+)
+
+big_tbl_ordered <- big_tbl |>
+  mutate(Trajectory = factor(Trajectory, levels = trajectory_order)) |>
+  arrange(Trajectory)
+
+# ---- 5. CREATE the gt table with final formatting ----
+gt_all <-
+  gt(big_tbl_ordered, groupname_col = "Trajectory") |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_row_groups()
+  ) |>
+  cols_label(
+    Analysis = "Analysis",
+    k = html("k"),
+    `Relative Prevalence (95% CI)` = "Relative Prevalence (95% CI)",
+    `Logit Estimate` = "Logit Estimate",
+    tau2 = html("&tau;<sup>2</sup>")
+  ) |>
+  fmt_number(columns = c(`Logit Estimate`, tau2), decimals = 2) |>
+  cols_align(align = "left", columns = Analysis) |>
+  cols_align(align = "center", columns = c(k, `Relative Prevalence (95% CI)`, `Logit Estimate`, tau2)) |>
+  opt_row_striping() |>
+  tab_options(
+    table.font.names = c("Source Sans Pro", "Inter", "Helvetica", "Arial", "sans-serif"),
+    data_row.padding = px(6),
+    column_labels.font.weight = "bold",
+    row_group.as_column = FALSE
+  ) |>
+  tab_source_note(md(
+    "Note. Logit estimate is on the log-odds scale; &tau;<sup>2</sup> indicates between-study heterogeneity; values > 0.50 suggest substantial heterogeneity."
+  ))
+
+# ---- 6) Auto-notes using Study (already "Author, Year") ----
+
+# Minimal helpers
+.get_model_data <- function(fit) {
+  d <- tryCatch({
+    cd <- fit$call$data
+    if (is.symbol(cd)) get(as.character(cd), envir = .GlobalEnv)
+    else if (is.character(cd)) get(cd, envir = .GlobalEnv)
+    else NULL
+  }, error = function(e) NULL)
+  if (is.null(d)) tryCatch(model.frame(fit), error = function(e) NULL) else d
+}
+
+.used_rows <- function(fit, n_df) {
+  if (!is.null(fit$not.na) && length(fit$not.na) == n_df) which(fit$not.na) else seq_len(n_df)
+}
+
+.labels_from_study <- function(fit) {
+  df <- .get_model_data(fit)
+  if (is.null(df)) return(character(0))
+  nm <- if ("Study" %in% names(df)) "Study" else if ("study" %in% names(df)) "study" else stop("Column 'Study' not found.")
+  idx <- .used_rows(fit, nrow(df))
+  as.character(df[[nm]])[idx]
+}
+
+.excluded_study_labels <- function(traj_stub) {
+  main_fit  <- tryCatch(get(paste0("glmm_", traj_stub), envir = .GlobalEnv), error = function(e) NULL)
+  noinf_fit <- tryCatch(get(paste0("glmm_", traj_stub, "_noinf"), envir = .GlobalEnv), error = function(e) NULL)
+  if (is.null(main_fit)) return(character(0))
+  main_labs <- trimws(.labels_from_study(main_fit))
+  if (!is.null(noinf_fit)) {
+    noinf_labs <- trimws(.labels_from_study(noinf_fit))
+    setdiff(main_labs, noinf_labs)
+  } else {
+    character(0)  # no _noinf model => no exclusions to show
+  }
+}
+
+format_note <- function(vec) {
+  if (length(vec) == 0) "No influential studies excluded."
+  else paste0("Excluded influential studies: ", paste(vec, collapse = "; "))
+}
+
+# Build notes per displayed group label
+excluded_by_group <- setNames(
+  lapply(names(trajectory_map), .excluded_study_labels),
+  nm = unname(trajectory_map[names(trajectory_map)])
+)
+excluded_notes <- lapply(excluded_by_group, format_note)
+
+# Attach footnote to the “Excluding influential studies” row within each group
+gt_all <- purrr::reduce(
+  names(excluded_notes),
+  .init = gt_all,
+  .f = function(gt_obj, grp_label) {
+    tab_footnote(
+      gt_obj,
+      footnote  = excluded_notes[[grp_label]],
+      locations = cells_body(
+        columns = "Analysis",
+        rows = (Trajectory == grp_label) & (Analysis == "Excluding influential studies")
+      )
+    )
+  }
+)
+
+gt_all
+
+
+```
+------------------------------------------------------------------------
 
